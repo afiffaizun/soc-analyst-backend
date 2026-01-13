@@ -9,23 +9,32 @@ services:
       POSTGRES_PASSWORD: socpassword
       POSTGRES_DB: soc_db
     ports:
-      - "5433:5433"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U socuser -d soc_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  api:
+  app:
     build: .
-    container_name: soc_api
-    ports:
-      - "8080:8080"
-    depends_on:
-      - db
+    container_name: soc_backend
     environment:
-      - DB_HOST=db
-      - DB_USER=socuser
-      - DB_PASSWORD=socpassword
-      - DB_NAME=soc_db
-      - DB_PORT=5433
+      DB_HOST: db
+      DB_USER: socuser
+      DB_PASSWORD: socpassword
+      DB_NAME: soc_db
+      DB_PORT: 5432
+      PORT: 5433
+      TZ: Asia/Jakarta
+    ports:
+      - "5433:5433"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

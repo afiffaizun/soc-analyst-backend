@@ -1,5 +1,6 @@
-# Build Stage
+# Build stage
 FROM golang:1.25-alpine AS builder
+
 
 WORKDIR /app
 
@@ -11,12 +12,14 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/server
 
-# Run Stage
+# Final stage
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
+
+ENV TZ=Asia/Jakarta
 
 WORKDIR /root/
 
@@ -24,7 +27,7 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 # Expose port
-EXPOSE 8080
+EXPOSE 5433
 
-# Run the binary
+# Run the application
 CMD ["./main"]
