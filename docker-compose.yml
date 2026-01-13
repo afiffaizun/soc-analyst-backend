@@ -9,9 +9,23 @@ services:
       POSTGRES_PASSWORD: socpassword
       POSTGRES_DB: soc_db
     ports:
-      - "5432:5432"
+      - "5433:5433"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: soc_api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_USER=socuser
+      - DB_PASSWORD=socpassword
+      - DB_NAME=soc_db
+      - DB_PORT=5433
 
 volumes:
   postgres_data:
