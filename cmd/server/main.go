@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"time"
@@ -34,6 +36,90 @@ func debugLog(location, message string, data map[string]interface{}, hypothesisI
 
 // #endregion
 
+// findAvailablePort tries to find an available port, starting with preferredPort
+// If preferredPort is not available, it tries ports 8080-8090 as fallback
+func findAvailablePort(preferredPort string) (string, error) {
+	// #region agent log
+	debugLog("main.go:findAvailablePort", "checking preferred port", map[string]interface{}{
+		"preferredPort": preferredPort,
+	}, "A")
+	// #endregion
+
+	// First, try the preferred port
+	if isPortAvailable(preferredPort) {
+		// #region agent log
+		debugLog("main.go:findAvailablePort", "preferred port available", map[string]interface{}{
+			"port": preferredPort,
+		}, "A")
+		// #endregion
+		return preferredPort, nil
+	}
+
+	// #region agent log
+	debugLog("main.go:findAvailablePort", "preferred port not available, trying fallback", map[string]interface{}{
+		"preferredPort": preferredPort,
+	}, "A")
+	// #endregion
+
+	// If preferred port is not available, try fallback ports (8080-8090)
+	preferredPortInt, err := strconv.Atoi(preferredPort)
+	if err != nil {
+		preferredPortInt = 8080
+	}
+
+	// Try ports starting from 8080, or preferredPort+1 if preferredPort is numeric
+	startPort := 8080
+	if preferredPortInt >= 8080 && preferredPortInt < 8090 {
+		startPort = preferredPortInt + 1
+	}
+
+	for port := startPort; port <= 8090; port++ {
+		portStr := strconv.Itoa(port)
+		// #region agent log
+		debugLog("main.go:findAvailablePort", "checking fallback port", map[string]interface{}{
+			"port": portStr, "attempt": port - startPort + 1,
+		}, "A")
+		// #endregion
+		if isPortAvailable(portStr) {
+			// #region agent log
+			debugLog("main.go:findAvailablePort", "fallback port available", map[string]interface{}{
+				"port": portStr, "preferredPort": preferredPort,
+			}, "A")
+			// #endregion
+			log.Printf("Port %s is in use, using fallback port %s", preferredPort, portStr)
+			return portStr, nil
+		}
+	}
+
+	return "", fmt.Errorf("no available port found (tried %s and 8080-8090)", preferredPort)
+}
+
+// isPortAvailable checks if a port is available by attempting to listen on it
+func isPortAvailable(port string) bool {
+	// #region agent log
+	debugLog("main.go:isPortAvailable", "checking port availability", map[string]interface{}{
+		"port": port,
+	}, "A")
+	// #endregion
+
+	ln, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		// #region agent log
+		debugLog("main.go:isPortAvailable", "port not available", map[string]interface{}{
+			"port": port, "error": err.Error(),
+		}, "A")
+		// #endregion
+		return false
+	}
+	ln.Close()
+	// #region agent log
+	debugLog("main.go:isPortAvailable", "port available", map[string]interface{}{
+		"port": port,
+	}, "A")
+	// #endregion
+	return true
+}
+
 func main() {
 	// #region agent log
 	debugLog("main.go:14", "main function entry", map[string]interface{}{}, "D")
@@ -41,7 +127,7 @@ func main() {
 	// Load DB config from env (with sensible defaults)
 	dbHost := os.Getenv("DB_HOST")
 	if dbHost == "" {
-		dbHost = "db"
+		dbHost = "localhost" // Changed from "db" to "localhost" for running outside Docker
 	}
 	dbUser := os.Getenv("DB_USER")
 	if dbUser == "" {
@@ -83,18 +169,53 @@ func main() {
 		api.GET("/articles", handlers.GetArticles)
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "5433" // default API port sesuai permintaan
+	// Get port from env or use default
+	preferredPort := os.Getenv("PORT")
+	if preferredPort == "" {
+		preferredPort = "5433" // default API port sesuai permintaan
 	}
+
+	// #region agent log
+	debugLog("main.go:87", "port configuration", map[string]interface{}{
+		"preferredPort": preferredPort, "portEnv": os.Getenv("PORT"), "isDefault": os.Getenv("PORT") == "",
+	}, "A")
+	// #endregion
+
+	// Try to find an available port
+	port, err := findAvailablePort(preferredPort)
+	if err != nil {
+		// #region agent log
+		debugLog("main.go:95", "failed to find available port", map[string]interface{}{
+			"error": err.Error(), "preferredPort": preferredPort,
+		}, "E")
+		// #endregion
+		log.Fatal("Failed to find available port:", err)
+	}
+
+	// #region agent log
+	debugLog("main.go:100", "port selected", map[string]interface{}{
+		"port": port, "preferredPort": preferredPort, "isFallback": port != preferredPort,
+	}, "B")
+	// #endregion
 
 	log.Printf("Server starting on port %s", port)
 	// #region agent log
-	debugLog("main.go:57", "before server start", map[string]interface{}{"port": port}, "D")
+	debugLog("main.go:105", "before server start", map[string]interface{}{
+		"port": port, "address": ":" + port,
+	}, "C")
 	// #endregion
+
+	// #region agent log
+	debugLog("main.go:110", "attempting to bind port", map[string]interface{}{
+		"port": port, "address": ":" + port,
+	}, "D")
+	// #endregion
+
 	if err := r.Run(":" + port); err != nil {
 		// #region agent log
-		debugLog("main.go:59", "server start error", map[string]interface{}{"error": err.Error()}, "D")
+		debugLog("main.go:115", "server start error", map[string]interface{}{
+			"error": err.Error(), "port": port, "errorType": fmt.Sprintf("%T", err),
+		}, "F")
 		// #endregion
 		log.Fatal(err)
 	}

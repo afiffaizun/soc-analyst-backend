@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:13-alpine
-    container_name: soc_postgres
     environment:
       POSTGRES_USER: socuser
       POSTGRES_PASSWORD: socpassword
@@ -20,7 +17,6 @@ services:
 
   app:
     build: .
-    container_name: soc_backend
     environment:
       DB_HOST: db
       DB_USER: socuser
@@ -28,7 +24,6 @@ services:
       DB_NAME: soc_db
       DB_PORT: 5432
       PORT: 5433
-      TZ: Asia/Jakarta
     ports:
       - "5433:5433"
     depends_on:
